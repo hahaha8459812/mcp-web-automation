@@ -123,6 +123,7 @@ curl -H "X-API-Key: your-api-key" http://your-server-ip:29527/health
 
 成功返回：`{"status": "ok", "message": "MCP Web Automation Tool is running"}`
 
+  
 ## 📖 API 文档
 
 ### 认证
@@ -192,6 +193,9 @@ Content-Type: application/json
 ```
 
 详细 API 文档请查看 [docs/API.md](docs/API.md)
+
+## 📚 详细文档
+- 📋 [完整配置指南](docs/CONFIGURATION.md) - 所有功能配置选项和修改方法
 
 ## ⚙️ 配置说明
 
