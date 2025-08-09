@@ -1,0 +1,8 @@
+# 保持 data 目录存在
+# Keep data directory in git
+
+这个文件确保 data 目录被 Git 跟踪，即使目录为空。
+用户数据文件（如 user-data.json）将在运行时自动创建在此目录中。
+
+This file ensures the data directory is tracked by Git, even when empty.
+User data files (like user-data.json) will be automatically created in this directory at runtime.
