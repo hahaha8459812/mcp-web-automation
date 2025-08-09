@@ -146,3 +146,92 @@
        "host": "0.0.0.0"
      }
    }
+   ```
+
+2. 编辑 `docker-compose.yml`：
+   ```yaml
+   ports:
+     - "8080:8080"
+   ```
+
+### 🔧 启用图片加载禁用（节省带宽）
+编辑 `src/browser/manager.js`，取消注释：
+```javascript
+await page.setRequestInterception(true);
+page.on('request', (req) => {
+    if(req.resourceType() == 'image'){
+        req.abort();
+    } else {
+        req.continue();
+    }
+});
+```
+
+### 🔧 调整内存限制
+编辑 `docker-compose.yml`：
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 1G  # 增加到1GB
+      cpus: '2.0' # 增加到2核
+```
+
+### 🔧 修改日志级别
+编辑 `config/config.json`：
+```json
+{
+  "logging": {
+    "level": "debug"  # error/warn/info/debug
+  }
+}
+```
+
+---
+
+## ⚠️ **重要注意事项**
+
+### 🔴 必须修改的配置
+- **API 密钥**：`api_key` 必须改为强密码
+- **生产环境**：建议禁用 `debug` 日志级别
+
+### 🟡 谨慎修改的配置
+- **浏览器启动参数**：内存相关参数需要根据服务器配置调整
+- **并发客户端数**：过高可能导致内存不足
+- **资源限制**：Docker 资源限制需要与实际硬件匹配
+
+### 🟢 安全修改的配置
+- **端口号**：可以改为任何可用端口
+- **日志配置**：可以根据需要调整
+- **功能开关**：可以根据需要启用/禁用特定功能
+
+---
+
+## 🔄 **配置修改后的重启**
+
+修改配置文件后，需要重启服务：
+```bash
+./scripts/start.sh restart
+```
+
+查看配置是否生效：
+```bash
+./scripts/start.sh status
+./scripts/start.sh logs
+```
+
+---
+
+## 📞 **配置问题排查**
+
+如果配置修改后服务无法启动，请检查：
+
+1. **JSON 语法**：确保 `config/config.json` 格式正确
+2. **端口占用**：确保端口没有被其他服务占用
+3. **权限问题**：确保文件权限正确
+4. **资源限制**：确保Docker资源限制不超过系统可用资源
+
+查看详细错误信息：
+```bash
+docker-compose logs --tail=50
+```
