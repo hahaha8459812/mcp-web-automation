@@ -1,0 +1,55 @@
+{
+  "name": "mcp-web-automation",
+  "version": "1.0.0",
+  "description": "轻量级 MCP (Model Context Protocol) 网页自动化工具",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "echo 'No build step required for this project'",
+    "test": "echo 'No tests specified yet'",
+    "docker:build": "docker build -t mcp-web-automation .",
+    "docker:run": "docker run -p 29527:29527 mcp-web-automation"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "web-automation",
+    "browser",
+    "puppeteer",
+    "ai-tools",
+    "automation"
+  ],
+  "author": {
+    "name": "hahaha8459812",
+    "url": "https://github.com/hahaha8459812"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hahaha8459812/mcp-web-automation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hahaha8459812/mcp-web-automation/issues"
+  },
+  "homepage": "https://github.com/hahaha8459812/mcp-web-automation#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.6.1",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ]
+}
