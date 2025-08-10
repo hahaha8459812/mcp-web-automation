@@ -169,7 +169,8 @@ function setupRoutes(app, config, managers) {
             
             res.json({
                 success: true,
-                message: 'Content extracte
+                message: 'Content extracted successfully',
+                data: {
                     content: result.content,
                     selector: selector,
                     type: type,
@@ -203,7 +204,8 @@ function setupRoutes(app, config, managers) {
             
             res.json({
                 success: true,
-                message: 'Click
+                message: 'Click successful',
+                data: result
             });
             
         } catch (error) {
@@ -230,7 +232,9 @@ function setupRoutes(app, config, managers) {
             
             res.json({
                 success: true,
-                message: 'Input successful});
+                message: 'Input successful',
+                data: result
+            });
             
         } catch (error) {
             logger.error('❌ 输入失败:', error);
@@ -331,6 +335,8 @@ function setupRoutes(app, config, managers) {
             res.json({
                 success: true,
                 message: `Bookmark ${action} successful`,
+                data: result
+            });
             
         } catch (error) {
             logger.error('❌ 收藏夹操作失败:', error);
@@ -386,7 +392,8 @@ function setupRoutes(app, config, managers) {
             
             res.json({
                 success: true,
-                message: `Credential ${action}
+                message: `Credential ${action} successful`,
+                data: result
             });
             
         } catch (error) {
