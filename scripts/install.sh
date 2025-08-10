@@ -249,6 +249,11 @@ setup_config() {
         mkdir -p logs
         log_info "📁 创建日志目录: logs/"
     fi
+
+       
+    # [新增] 修复权限问题：将目录所有权交给容器内的非root用户(UID 1001)
+    log_info "🔧 修正目录权限以适配 Docker 容器..."
+    chown -R 1001:1001 data config logs
 }
 
 # 构建和启动服务
