@@ -23,7 +23,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 COPY package*.json ./
 
 # 安装依赖
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # 创建必要的目录
 RUN mkdir -p config data logs
