@@ -65,6 +65,15 @@ class BrowserManager {
                     '--memory-pressure-off',        // 关闭内存压力检测
                     `--max-old-space-size=256`,     // 限制V8内存使用
                     '--js-flags="--max-old-space-size=256"'
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-software-rasterizer',
+                    '--disable-background-networking',
+                    '--disable-default-apps',
+                    '--disable-sync',
+                    '--metrics-recording-only',
+                    '--no-crash-upload',
+                    '--disable-crash-reporter'
                 ],
                 defaultViewport: this.config.viewport,
                 ignoreHTTPSErrors: true,
