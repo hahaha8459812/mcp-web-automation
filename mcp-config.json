@@ -1,0 +1,123 @@
+{
+  "// 配置说明": "MCP Web Automation Tool 配置文件",
+  "// Configuration Description": "Configuration file for MCP Web Automation Tool",
+  
+  "server": {
+    "name": "web-automation",
+    "version": "1.0.0",
+    "description": "Web automation tools for AI assistants via Model Context Protocol",
+    "author": "hahaha8459812"
+  },
+  
+  "capabilities": {
+    "tools": {
+      "enabled": true,
+      "list_tools": true,
+      "call_tools": true
+    },
+    "resources": {
+      "enabled": false,
+      "list_resources": false,
+      "read_resources": false
+    },
+    "prompts": {
+      "enabled": false,
+      "list_prompts": false,
+      "get_prompts": false
+    }
+  },
+  
+  "tools": [
+    {
+      "name": "web_navigate",
+      "enabled": true,
+      "description": "Navigate to a web page and return page information",
+      "category": "navigation"
+    },
+    {
+      "name": "web_extract_content",
+      "enabled": true,
+      "description": "Extract content from the current page using CSS selectors",
+      "category": "extraction"
+    },
+    {
+      "name": "web_click_element",
+      "enabled": true,
+      "description": "Click on a web page element",
+      "category": "interaction"
+    },
+    {
+      "name": "web_input_text",
+      "enabled": true,
+      "description": "Input text into a form field",
+      "category": "interaction"
+    },
+    {
+      "name": "web_screenshot",
+      "enabled": true,
+      "description": "Take a screenshot of the current page",
+      "category": "capture"
+    },
+    {
+      "name": "web_manage_bookmarks",
+      "enabled": true,
+      "description": "Manage website bookmarks (add, list, delete, update)",
+      "category": "data"
+    },
+    {
+      "name": "web_manage_credentials",
+      "enabled": true,
+      "description": "Manage website login credentials (save, get, list, delete)",
+      "category": "data"
+    }
+  ],
+  
+  "browser": {
+    "headless": true,
+    "timeout": 30000,
+    "max_concurrent_clients": 2,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  
+  "security": {
+    "enable_credential_storage": true,
+    "enable_bookmark_storage": true,
+    "max_screenshot_size": "10MB",
+    "allowed_domains": [],
+    "blocked_domains": []
+  },
+  
+  "logging": {
+    "level": "info",
+    "enable_tool_logging": true,
+    "enable_error_logging": true
+  },
+  
+  "ai_client_examples": {
+    "claude_desktop": {
+      "config_path": "~/.claude-desktop.json",
+      "example_config": {
+        "mcpServers": {
+          "web-automation": {
+            "command": "node",
+            "args": ["/path/to/mcp-web-automation/src/mcp-server.js"],
+            "env": {
+              "NODE_ENV": "production"
+            }
+          }
+        }
+      }
+    },
+    "chatgpt": {
+      "description": "Configure as MCP server in ChatGPT settings",
+      "server_path": "/path/to/mcp-web-automation/src/mcp-server.js"
+    },
+    "cursor": {
+      "description": "Add as MCP tool in Cursor IDE settings",
+      "command": "node /path/to/mcp-web-automation/src/mcp-server.js"
+    }
+  }
+}
