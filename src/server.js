@@ -122,9 +122,10 @@ function setupRoutes(app, config, managers) {
     });
     
     // ==================== API 认证中间件 ====================
-    app.use('/api', (req, res, next) => {
-        authenticateApiKey(req, res, next, config.api_key);
-    });
+    // 注释掉认证中间件，允许无限制访问
+    // app.use('/api', (req, res, next) => {
+    //     authenticateApiKey(req, res, next, config.api_key);
+    // });
     
     // ==================== 浏览器导航 ====================
     app.post('/api/navigate', async (req, res) => {

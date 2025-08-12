@@ -70,9 +70,10 @@ class BrowserManager {
     }
     
     async getClientSession(clientId) {
-        if (!this.clients.has(clientId) && this.clients.size >= this.config.max_clients) {
-            throw new Error(`Maximum number of clients (${this.config.max_clients}) exceeded`);
-        }
+        // 移除客户端数量限制，允许无限制并发
+        // if (!this.clients.has(clientId) && this.clients.size >= this.config.max_clients) {
+        //     throw new Error(`Maximum number of clients (${this.config.max_clients}) exceeded`);
+        // }
         
         if (this.clients.has(clientId)) {
             const session = this.clients.get(clientId);
