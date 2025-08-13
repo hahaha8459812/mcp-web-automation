@@ -1,608 +1,637 @@
-# 🔧 故障排除指南 - 混合部署版
+# 🔧 故障排除指南
 
-> MCP Web Automation Tool 常见问题解决方案 - 支持HTTP API + MCP HTTP + MCP stdio
+> MCP Web Automation Tool 常见问题解决方案
 
-## 🚨 混合部署常见问题
+## 🚨 常见问题快速检查
 
-### ⚙️ **混合服务状态检查**
-在排查问题前，首先检查混合服务状态：
+在排查问题前，首先进行基础检查：
 ```bash
-# 查看所有服务状态
-./start-hybrid.sh status
+# 查看MCP服务状态
+./start-mcp.sh status
 
-# 查看详细日志
-./start-hybrid.sh logs
+# 查看服务日志
+./start-mcp.sh logs
 
-# 测试所有服务
-./start-hybrid.sh test
+# 测试MCP服务
+./start-mcp.sh test
 ```
 
 ---
 
 ## 🎯 **服务启动问题**
 
-### 1️⃣ **混合服务启动失败**
+### 1️⃣ **MCP服务启动失败**
 
 #### 问题症状
 ```
-❌ HTTP API服务器启动失败
 ❌ MCP HTTP服务器启动失败
-❌ 端口冲突或服务无响应
+❌ 端口29528被占用
+❌ 服务无响应
+```
+
+#### 诊断步骤
+```bash
+# 1. 检查端口占用
+lsof -i :29528
+
+# 2. 检查Node.js进程
+ps aux | grep node
+
+# 3. 查看启动日志
+./start-mcp.sh logs
+
+# 4. 检查配置文件
+jq . mcp-config.json
 ```
 
 #### 解决方案
-
-**步骤1: 检查端口占用**
 ```bash
-# 检查HTTP API端口 (29527)
-lsof -i :29527
-netstat -tulnp | grep 29527
+# 强制停止占用端口的进程
+lsof -ti:29528 | xargs kill -9
 
-# 检查MCP HTTP端口 (29528)
-lsof -i :29528
-netstat -tulnp | grep 29528
+# 清理PID文件
+rm -f logs/*.pid
 
-# 如果端口被占用，停止占用进程
-sudo kill -9 <PID>
+# 重启MCP服务
+./start-mcp.sh restart
 ```
 
-**步骤2: 检查Node.js环境**
+### 2️⃣ **Node.js版本问题**
+
+#### 问题症状
+```
+❌ 语法错误或模块不兼容
+❌ 启动时出现版本警告
+```
+
+#### 检查版本
 ```bash
-# 验证Node.js版本
-node --version  # 应该是 v18+ 或 v20+
+node --version  # 需要 18.0.0 或更高版本
+npm --version
+```
 
-# 验证npm依赖
-npm list --depth=0
+#### 解决方案
+```bash
+# 安装Node.js 18+
+# Ubuntu/Debian
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-# 重新安装依赖（如果有问题）
+# 重新安装依赖
 rm -rf node_modules package-lock.json
 npm install
 ```
 
-**步骤3: 清理并重启**
-```bash
-# 停止所有混合服务
-./start-hybrid.sh stop
-
-# 清理进程
-pkill -f "node.*mcp" || true
-
-# 重新启动
-./start-hybrid.sh start
-```
-
-### 2️⃣ **浏览器初始化失败**
+### 3️⃣ **依赖安装问题**
 
 #### 问题症状
 ```
-Browser initialization failed: Protocol error (Target.setAutoAttach): Target closed
-Browser initialization failed: TargetCloseError
-Error: Could not find browser instance
+❌ 模块找不到
+❌ 依赖版本冲突
 ```
 
 #### 解决方案
-检查 `docker-compose.yml` 配置是否包含必要的参数：
-
-```yaml
-services:
-  mcp-web-automation:
-    # ... 其他配置
-    shm_size: '2gb'                    # 共享内存大小
-    security_opt:
-      - seccomp:unconfined             # 安全配置
-    cap_add:
-      - SYS_ADMIN                      # 系统权限
-    ports:
-      - "29527:29527"                  # HTTP API端口
-      - "29528:29528"                  # MCP HTTP端口
-```
-
-如果仍然失败，尝试完全重新构建：
 ```bash
-docker-compose down
-docker-compose build --no-cache
-./start-hybrid.sh start
-```
+# 清理并重新安装
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
 
-### 3️⃣ **容器健康检查失败**
-
-#### 问题症状
-```
-STATUS: Up X minutes (unhealthy)
-```
-
-#### 解决方案
-这通常不影响实际功能，但可以通过以下方式修复：
-
-```bash
-# 检查HTTP API服务是否正常
-curl http://localhost:29527/health
-
-# 检查MCP HTTP服务是否正常
-curl http://localhost:29528/health
-
-# 如果返回正常JSON，说明服务工作正常
-# 健康检查配置问题不影响使用
+# 检查依赖
+npm list --depth=0
 ```
 
 ---
 
-## 🔗 **MCP协议问题**
+## 🔌 **MCP连接问题**
 
-### 4️⃣ **MCP stdio连接失败**
-
-#### 问题症状
-```
-Error: MCP server connection failed
-TypeError: Cannot read properties of undefined (reading 'method')
-Connection timeout
-```
-
-#### 解决方案
-
-**步骤1: 验证MCP服务器启动**
-```bash
-# 手动测试MCP stdio服务器
-node src/mcp-server.js
-
-# 应该看到服务器等待stdio输入
-# 按Ctrl+C退出
-```
-
-**步骤2: 检查AI客户端配置**
-```json
-// Claude Desktop配置示例
-{
-  "mcpServers": {
-    "web-automation": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-web-automation/src/mcp-server.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
-    }
-  }
-}
-```
-
-**步骤3: 测试MCP通信**
-```bash
-# 发送MCP初始化消息测试
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1.0.0","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | node src/mcp-server.js
-```
-
-### 5️⃣ **MCP HTTP连接失败**
+### 1️⃣ **AI客户端连接失败**
 
 #### 问题症状
 ```
-Cannot connect to MCP HTTP endpoint
-SSE connection failed
-Error: connect ECONNREFUSED
+❌ Claude Desktop无法连接
+❌ MCP工具不可用
+❌ 连接超时
 ```
 
-#### 解决方案
-
-**步骤1: 检查MCP HTTP服务状态**
+#### stdio连接诊断
 ```bash
-# 检查服务是否运行
+# 测试stdio服务
+timeout 5s node src/mcp-server.js
+
+# 检查MCP服务器响应
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | node src/mcp-server.js
+```
+
+#### HTTP连接诊断
+```bash
+# 测试HTTP健康检查
 curl http://localhost:29528/health
 
-# 检查SSE端点
+# 测试MCP HTTP端点
 curl http://localhost:29528/mcp
-```
-
-**步骤2: 检查防火墙和网络**
-```bash
-# 检查防火墙状态
-sudo ufw status
-
-# 临时开放端口（如果需要）
-sudo ufw allow 29528
 
 # 检查网络连接
 telnet localhost 29528
 ```
 
-**步骤3: 验证CORS设置**
+#### 解决方案
+
+**本地stdio连接**：
+```json
+{
+  "mcpServers": {
+    "web-automation": {
+      "command": "node",
+      "args": ["src/mcp-server.js"],
+      "cwd": "/正确的/项目/路径"
+    }
+  }
+}
+```
+
+**远程HTTP连接**：
+```json
+{
+  "mcpServers": {
+    "web-automation": {
+      "url": "http://server-ip:29528/mcp"
+    }
+  }
+}
+```
+
+### 2️⃣ **配置文件问题**
+
+#### 问题症状
+```
+❌ 配置文件不存在
+❌ JSON语法错误
+❌ 路径配置错误
+```
+
+#### 诊断步骤
 ```bash
-# 测试跨域请求
-curl -H "Origin: http://localhost:3000" \
-     -H "Access-Control-Request-Method: GET" \
-     -H "Access-Control-Request-Headers: Content-Type" \
-     -X OPTIONS \
-     http://localhost:29528/mcp
+# 验证配置文件存在
+ls -la mcp-config.json
+
+# 验证JSON语法
+jq . mcp-config.json
+
+# 检查路径权限
+ls -la src/mcp-server.js
+```
+
+#### 解决方案
+```bash
+# 创建配置文件
+cp mcp-config.example.json mcp-config.json
+
+# 修复JSON语法
+jq . mcp-config.json || echo "JSON语法错误"
+
+# 设置正确权限
+chmod +x start-mcp.sh
+chmod 644 mcp-config.json
 ```
 
 ---
 
-## 🌐 **HTTP API问题**
+## 🌐 **网络和端口问题**
 
-### 6️⃣ **API访问被拒绝（已解决）**
-
-#### 问题症状
-```json
-{"success": false, "error": "API key is required"}
-{"success": false, "error": "Invalid API key"}
-```
-
-#### ✅ **解决方案**
-**好消息**: 在混合部署版中，API认证已被完全移除！
-
-```bash
-# 现在可以直接访问，无需API密钥
-curl http://localhost:29527/health
-curl -X POST -H "Content-Type: application/json" \
-     -d '{"url":"https://example.com","client_id":"test"}' \
-     http://localhost:29527/api/navigate
-```
-
-### 7️⃣ **客户端数量限制（已解决）**
+### 1️⃣ **端口冲突**
 
 #### 问题症状
-```json
-{"success": false, "error": "Maximum number of clients (2) exceeded"}
+```
+❌ 端口29528已被占用
+❌ 服务启动失败
 ```
 
-#### ✅ **解决方案**
-**好消息**: 在混合部署版中，客户端数量限制已被完全移除！
+#### 诊断命令
+```bash
+# 检查端口占用
+lsof -i :29528
+netstat -tlnp | grep 29528
+ss -tlnp | grep 29528
+
+# 查看进程详情
+ps aux | grep node
+```
+
+#### 解决方案
+```bash
+# 方案1: 杀死占用进程
+lsof -ti:29528 | xargs kill -9
+
+# 方案2: 更改端口
+# 编辑 mcp-config.json
+{
+  "http": {
+    "port": 30000
+  }
+}
+
+# 方案3: 使用环境变量
+HTTP_PORT=30000 ./start-mcp.sh http
+```
+
+### 2️⃣ **防火墙问题**
+
+#### 问题症状
+```
+❌ 远程无法访问
+❌ 连接被拒绝
+```
+
+#### 解决方案
+```bash
+# Ubuntu/Debian
+sudo ufw allow 29528
+
+# CentOS/RHEL
+sudo firewall-cmd --permanent --add-port=29528/tcp
+sudo firewall-cmd --reload
+
+# 检查防火墙状态
+sudo ufw status
+sudo firewall-cmd --list-ports
+```
+
+---
+
+## 🖥️ **浏览器引擎问题**
+
+### 1️⃣ **Chrome/Chromium启动失败**
+
+#### 问题症状
+```
+❌ 浏览器无法启动
+❌ 沙盒模式错误
+❌ 共享内存不足
+```
+
+#### 诊断步骤
+```bash
+# 检查Chrome是否可用
+which google-chrome || which chromium-browser
+
+# 测试手动启动Chrome
+google-chrome --version
+```
+
+#### 解决方案
+
+**Docker环境**：
+```json
+{
+  "browser": {
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu"
+    ]
+  }
+}
+```
+
+**内存不足**：
+```json
+{
+  "browser": {
+    "args": [
+      "--memory-pressure-off",
+      "--max_old_space_size=1024",
+      "--disable-background-timer-throttling"
+    ]
+  }
+}
+```
+
+**自定义Chrome路径**：
+```bash
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium ./start-mcp.sh stdio
+```
+
+### 2️⃣ **页面加载超时**
+
+#### 问题症状
+```
+❌ 页面加载超时
+❌ 网络请求失败
+```
+
+#### 解决方案
+```json
+{
+  "browser": {
+    "timeout": 60000,
+    "args": [
+      "--disable-web-security",
+      "--disable-features=VizDisplayCompositor"
+    ]
+  }
+}
+```
+
+---
+
+## 📁 **文件权限问题**
+
+### 1️⃣ **脚本权限不足**
+
+#### 问题症状
+```
+❌ Permission denied
+❌ 脚本无法执行
+```
+
+#### 解决方案
+```bash
+# 设置执行权限
+chmod +x start-mcp.sh
+
+# 检查文件权限
+ls -la start-mcp.sh
+
+# 设置目录权限
+chmod 755 .
+chmod 755 src/
+```
+
+### 2️⃣ **日志文件权限问题**
+
+#### 问题症状
+```
+❌ 无法写入日志
+❌ 日志目录不存在
+```
+
+#### 解决方案
+```bash
+# 创建日志目录
+mkdir -p logs
+
+# 设置权限
+chmod 755 logs/
+touch logs/mcp-http.log
+chmod 644 logs/mcp-http.log
+
+# 检查磁盘空间
+df -h
+```
+
+---
+
+## 🔍 **调试和诊断工具**
+
+### 1️⃣ **详细日志调试**
 
 ```bash
-# 现在支持无限数量的并发客户端
-# 可以同时运行多个AI客户端而不会收到限制错误
+# 启用调试模式
+LOG_LEVEL=debug ./start-mcp.sh http
+
+# 查看详细启动日志
+NODE_ENV=development ./start-mcp.sh stdio
+
+# 实时查看日志
+tail -f logs/mcp-http.log
+```
+
+### 2️⃣ **网络连接测试**
+
+```bash
+# 测试本地连接
+curl -v http://localhost:29528/health
+
+# 测试远程连接  
+curl -v http://server-ip:29528/health
+
+# 测试MCP端点
+curl -v http://localhost:29528/mcp
+```
+
+### 3️⃣ **进程监控**
+
+```bash
+# 监控Node.js进程
+watch 'ps aux | grep node'
+
+# 监控端口状态
+watch 'lsof -i :29528'
+
+# 监控系统资源
+top
+htop
 ```
 
 ---
 
 ## 💾 **数据和存储问题**
 
-### 8️⃣ **数据文件损坏**
+### 1️⃣ **数据文件丢失**
 
 #### 问题症状
 ```
-Error: Cannot read user data file
-JSON parse error in data/user-data.json
+❌ 书签数据丢失
+❌ 凭据无法保存
 ```
 
 #### 解决方案
 ```bash
-# 检查数据文件格式
-cat data/user-data.json | jq .
+# 检查数据目录
+ls -la data/
 
-# 如果格式错误，恢复默认结构
-cp data/user-data.json data/user-data.json.backup
-cat > data/user-data.json << 'EOF'
-{
-  "bookmarks": {},
-  "credentials": {}
-}
-EOF
+# 创建数据文件
+mkdir -p data
+echo '{"bookmarks":{},"credentials":{}}' > data/user-data.json
 
-# 重启服务
-./start-hybrid.sh restart
+# 设置权限
+chmod 644 data/user-data.json
 ```
 
-### 9️⃣ **日志文件过大**
+### 2️⃣ **磁盘空间不足**
 
 #### 问题症状
 ```
-Disk space running low
-Log files consuming too much space
+❌ 无法写入文件
+❌ 服务异常退出
 ```
 
 #### 解决方案
 ```bash
-# 查看日志文件大小
-du -sh logs/
-
-# 清理旧日志
-./start-hybrid.sh stop
-rm -f logs/*.log.old
-truncate -s 0 logs/http-api.log
-truncate -s 0 logs/mcp-http.log
-./start-hybrid.sh start
-
-# 或设置日志轮转
-# 编辑配置文件增加日志轮转设置
-```
-
----
-
-## 🖥️ **性能问题**
-
-### 🔟 **内存不足**
-
-#### 问题症状
-```
-Error: Cannot allocate memory
-Browser crashed: out of memory
-Container killed (OOMKilled)
-```
-
-#### 解决方案
-
-**步骤1: 检查内存使用**
-```bash
-# 查看系统内存
-free -h
-
-# 查看容器内存使用
-docker stats
-
-# 查看Node.js进程内存
-ps aux | grep node
-```
-
-**步骤2: 优化内存配置**
-```yaml
-# docker-compose.yml
-deploy:
-  resources:
-    limits:
-      memory: 2G          # 增加内存限制
-    reservations:
-      memory: 1G          # 增加内存预留
-```
-
-**步骤3: 优化浏览器参数**
-```javascript
-// src/browser/manager.js
-const args = [
-    '--max-old-space-size=512',        // 限制V8内存
-    '--disable-dev-shm-usage',         // 禁用/dev/shm
-    // ... 其他参数
-];
-```
-
-### 1️⃣1️⃣ **响应速度慢**
-
-#### 问题症状
-```
-API requests timing out
-Slow page loading
-High response latency
-```
-
-#### 解决方案
-
-**步骤1: 检查资源使用**
-```bash
-# 查看CPU使用率
-top
-htop
-
-# 查看网络延迟
-ping google.com
-```
-
-**步骤2: 优化配置**
-```json
-// config/config.json
-{
-  "browser": {
-    "timeout": 60000,              // 增加超时时间
-    "viewport": {
-      "width": 1280,               // 减小窗口大小
-      "height": 720
-    }
-  },
-  "features": {
-    "screenshots": {
-      "quality": 60                // 降低截图质量
-    }
-  }
-}
-```
-
----
-
-## 🔍 **网络连接问题**
-
-### 1️⃣2️⃣ **无法访问外部网站**
-
-#### 问题症状
-```
-Navigation failed: net::ERR_NAME_NOT_RESOLVED
-Timeout waiting for page load
-Connection refused
-```
-
-#### 解决方案
-
-**步骤1: 检查网络连接**
-```bash
-# 在容器内测试网络
-docker exec -it mcp-web-automation ping google.com
-docker exec -it mcp-web-automation nslookup google.com
-
-# 检查DNS设置
-cat /etc/resolv.conf
-```
-
-**步骤2: 检查代理设置**
-```bash
-# 如果使用代理，配置环境变量
-export HTTP_PROXY=http://proxy:port
-export HTTPS_PROXY=http://proxy:port
-```
-
-### 1️⃣3️⃣ **远程访问问题**
-
-#### 问题症状
-```
-Cannot access service from other devices
-Connection refused from remote IP
-Firewall blocking access
-```
-
-#### 解决方案
-
-**步骤1: 检查防火墙**
-```bash
-# Ubuntu/Debian
-sudo ufw status
-sudo ufw allow 29527
-sudo ufw allow 29528
-
-# CentOS/RHEL
-sudo firewall-cmd --list-all
-sudo firewall-cmd --add-port=29527/tcp --permanent
-sudo firewall-cmd --add-port=29528/tcp --permanent
-sudo firewall-cmd --reload
-```
-
-**步骤2: 检查服务绑定**
-```bash
-# 确保服务绑定到0.0.0.0而不是127.0.0.1
-netstat -tulnp | grep :29527
-netstat -tulnp | grep :29528
-```
-
----
-
-## 🛠️ **开发和调试**
-
-### 1️⃣4️⃣ **开发环境问题**
-
-#### 问题症状
-```
-Cannot start development server
-Module not found errors
-Dependencies conflict
-```
-
-#### 解决方案
-
-**步骤1: 重置开发环境**
-```bash
-# 清理依赖
-rm -rf node_modules package-lock.json
-
-# 重新安装
-npm install
-
-# 验证安装
-npm list --depth=0
-```
-
-**步骤2: 单独启动服务调试**
-```bash
-# 启动HTTP API（开发模式）
-NODE_ENV=development node src/index.js
-
-# 启动MCP stdio（调试模式）
-DEBUG=* node src/mcp-server.js
-
-# 启动MCP HTTP（详细日志）
-LOG_LEVEL=debug node src/mcp-remote-server.js http
-```
-
-### 1️⃣5️⃣ **日志调试**
-
-#### 启用详细日志
-```json
-// config/config.json
-{
-  "logging": {
-    "level": "debug"
-  }
-}
-```
-
-```json
-// mcp-config.json
-{
-  "logging": {
-    "level": "debug",
-    "format": "pretty"
-  }
-}
-```
-
-#### 实时查看日志
-```bash
-# 查看HTTP API日志
-tail -f logs/http-api.log
-
-# 查看MCP HTTP日志
-tail -f logs/mcp-http.log
-
-# 查看混合服务日志
-./start-hybrid.sh logs
-```
-
----
-
-## 📋 **诊断命令清单**
-
-### 🔧 **快速诊断脚本**
-```bash
-#!/bin/bash
-echo "=== MCP Web Automation 混合部署诊断 ==="
-
-echo "1. 检查Node.js环境..."
-node --version
-npm --version
-
-echo "2. 检查端口状态..."
-lsof -i :29527 2>/dev/null || echo "端口29527可用"
-lsof -i :29528 2>/dev/null || echo "端口29528可用"
-
-echo "3. 检查服务状态..."
-curl -s http://localhost:29527/health || echo "HTTP API未响应"
-curl -s http://localhost:29528/health || echo "MCP HTTP未响应"
-
-echo "4. 检查进程..."
-ps aux | grep node | grep -v grep
-
-echo "5. 检查内存..."
-free -h
-
-echo "6. 检查磁盘..."
+# 检查磁盘空间
 df -h
 
-echo "7. 检查日志文件..."
-ls -la logs/
+# 清理日志文件
+find logs/ -name "*.log" -mtime +7 -delete
 
-echo "=== 诊断完成 ==="
+# 清理临时文件
+rm -rf /tmp/puppeteer_dev_chrome_profile-*
 ```
 
-### 📊 **状态检查命令**
+---
+
+## 🚨 **紧急恢复指南**
+
+### 完全重置服务
+
 ```bash
-# 综合状态检查
-./start-hybrid.sh status && \
-curl -s http://localhost:29527/health | jq . && \
-curl -s http://localhost:29528/health | jq . && \
-echo "✅ 所有服务正常"
+# 1. 停止所有服务
+./start-mcp.sh stop
+pkill -f node
 
-# 完整测试
-./start-hybrid.sh test
+# 2. 清理进程和文件
+rm -f logs/*.pid
+rm -f logs/*.log
+
+# 3. 重新安装依赖
+rm -rf node_modules
+npm install
+
+# 4. 重新创建配置
+cp mcp-config.example.json mcp-config.json
+
+# 5. 重启服务
+./start-mcp.sh http
 ```
+
+### 备份和恢复
+
+```bash
+# 备份用户数据
+cp -r data/ data_backup_$(date +%Y%m%d)
+
+# 备份配置
+cp mcp-config.json mcp-config.backup.json
+
+# 恢复数据
+cp -r data_backup_20231201/ data/
+```
+
+---
+
+## 📊 **性能问题诊断**
+
+### 1️⃣ **内存使用过高**
+
+#### 诊断命令
+```bash
+# 查看内存使用
+free -h
+ps aux --sort=-%mem | head -10
+
+# 监控Node.js进程
+ps aux | grep node | awk '{print $2, $4, $11}' | sort -k2 -nr
+```
+
+#### 解决方案
+```json
+{
+  "browser": {
+    "args": [
+      "--memory-pressure-off",
+      "--max_old_space_size=512"
+    ]
+  },
+  "logging": {
+    "level": "warn"
+  }
+}
+```
+
+### 2️⃣ **响应速度慢**
+
+#### 优化配置
+```json
+{
+  "browser": {
+    "timeout": 15000,
+    "args": [
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding"
+    ]
+  }
+}
+```
+
+---
+
+## 📋 **常见错误码对照表**
+
+| 错误码 | 含义 | 解决方案 |
+|--------|------|---------|
+| `EADDRINUSE` | 端口被占用 | 更改端口或杀死占用进程 |
+| `ENOENT` | 文件不存在 | 检查文件路径和权限 |
+| `EACCES` | 权限不足 | 设置正确的文件权限 |
+| `ECONNREFUSED` | 连接被拒绝 | 检查服务状态和防火墙 |
+| `TIMEOUT` | 连接超时 | 增加超时时间或检查网络 |
+| `MODULE_NOT_FOUND` | 模块未找到 | 重新安装依赖 |
 
 ---
 
 ## 🆘 **获取帮助**
 
-### 📞 **支持渠道**
-1. **查看详细日志**: `./start-hybrid.sh logs`
-2. **检查配置文档**: [CONFIGURATION.md](CONFIGURATION.md)
-3. **查看命令参考**: [COMMANDS-指令速查.md](COMMANDS-指令速查.md)
-4. **提交Issue**: [GitHub Issues](https://github.com/hahaha8459812/mcp-web-automation/issues)
+### 收集诊断信息
 
-### 🐛 **报告问题时请提供**
 ```bash
-# 收集诊断信息
-echo "=== 系统信息 ===" > debug-info.txt
-uname -a >> debug-info.txt
-echo "=== Node.js版本 ===" >> debug-info.txt
-node --version >> debug-info.txt
-echo "=== 服务状态 ===" >> debug-info.txt
-./start-hybrid.sh status >> debug-info.txt
-echo "=== 最近日志 ===" >> debug-info.txt
-tail -50 logs/http-api.log >> debug-info.txt
-tail -50 logs/mcp-http.log >> debug-info.txt
+# 生成诊断报告
+echo "=== 系统信息 ===" > diagnosis.txt
+uname -a >> diagnosis.txt
+node --version >> diagnosis.txt
+npm --version >> diagnosis.txt
+
+echo "=== 服务状态 ===" >> diagnosis.txt
+./start-mcp.sh status >> diagnosis.txt
+
+echo "=== 端口状态 ===" >> diagnosis.txt
+lsof -i :29528 >> diagnosis.txt
+
+echo "=== 最新日志 ===" >> diagnosis.txt
+tail -50 logs/mcp-http.log >> diagnosis.txt
+
+echo "=== 配置文件 ===" >> diagnosis.txt
+cat mcp-config.json >> diagnosis.txt
+```
+
+### 快速自检脚本
+
+```bash
+#!/bin/bash
+echo "🔍 MCP Web Automation 自检..."
+
+# 检查Node.js版本
+if node --version | grep -q "v1[8-9]\|v[2-9][0-9]"; then
+    echo "✅ Node.js版本正常"
+else
+    echo "❌ Node.js版本过低，需要18+"
+fi
+
+# 检查端口
+if lsof -i :29528 >/dev/null 2>&1; then
+    echo "⚠️  端口29528被占用"
+else
+    echo "✅ 端口29528可用"
+fi
+
+# 检查配置文件
+if jq . mcp-config.json >/dev/null 2>&1; then
+    echo "✅ 配置文件格式正确"
+else
+    echo "❌ 配置文件JSON格式错误"
+fi
+
+# 检查依赖
+if [ -d "node_modules" ]; then
+    echo "✅ 依赖已安装"
+else
+    echo "❌ 需要运行 npm install"
+fi
+
+echo "🎉 自检完成"
 ```
 
 ---
 
-*最后更新 Last Updated: 2025-08-12 | 混合部署版 Hybrid Deployment Version*
-```
+**💡 如果问题仍然存在，请检查系统日志或联系技术支持，并提供诊断信息。**
