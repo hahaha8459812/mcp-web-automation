@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * MCP Web Automation Tool - 远程MCP服务器
- * 支持本地stdio和远程HTTP/WebSocket访问的MCP服务
+ * MCP Web Automation Tool - MCP服务器
+ * 符合Model Context Protocol规范的Web自动化工具
  * 
  * @author hahaha8459812
  * @version 1.0.0
@@ -20,10 +20,10 @@ const BookmarkManager = require('./data/bookmarks');
 const CredentialManager = require('./data/credentials');
 const logger = require('./utils/logger');
 
-class RemoteMCPServer {
+class MCPWebAutomationServer {
     constructor() {
         this.mcpServer = new McpServer({
-            name: "web-automation-remote",
+            name: "web-automation",
             version: "1.0.0",
         });
         
@@ -450,17 +450,17 @@ class RemoteMCPServer {
                 }
             });
             
-            // 健康检查
-            app.get('/health', (req, res) => {
-                res.json({
-                    status: 'ok',
-                    message: 'Remote MCP Web Automation Server is running',
-                    version: '1.0.0',
-                    timestamp: new Date().toISOString(),
-                    protocols: ['stdio', 'http-sse'],
-                    tools_count: 7
-                });
-            });
+                                    // 健康检查
+                        app.get('/health', (req, res) => {
+                            res.json({
+                                status: 'ok',
+                                message: 'MCP Web Automation Server is running',
+                                version: '1.0.0',
+                                timestamp: new Date().toISOString(),
+                                protocols: ['stdio', 'http-sse'],
+                                tools_count: 7
+                            });
+                        });
             
             // 启动HTTP服务器
             app.listen(port, '0.0.0.0', () => {
@@ -475,32 +475,20 @@ class RemoteMCPServer {
         }
     }
 
-    async start(mode = 'stdio') {
-        try {
-            if (mode === 'stdio') {
-                await this.startStdioServer();
-            } else if (mode === 'http') {
-                await this.startHttpServer();
-            } else if (mode === 'hybrid') {
-                // 在不同进程中启动两种服务
-                const { spawn } = require('child_process');
-                
-                // 启动HTTP服务器进程
-                const httpProcess = spawn('node', [__filename, 'http'], {
-                    stdio: 'inherit',
-                    detached: true
-                });
-                
-                logger.info('🚀 启动混合模式：stdio + HTTP');
-                
-                // 启动stdio服务器
-                await this.startStdioServer();
-            }
-        } catch (error) {
-            logger.error('❌ 服务器启动失败:', error);
-            process.exit(1);
-        }
-    }
+                    async start(mode = 'stdio') {
+                    try {
+                        if (mode === 'stdio') {
+                            await this.startStdioServer();
+                        } else if (mode === 'http') {
+                            await this.startHttpServer();
+                        } else {
+                            throw new Error(`Unsupported mode: ${mode}`);
+                        }
+                    } catch (error) {
+                        logger.error('❌ 服务器启动失败:', error);
+                        process.exit(1);
+                    }
+                }
 }
 
 // 命令行启动逻辑
@@ -508,9 +496,9 @@ async function main() {
     const args = process.argv.slice(2);
     const mode = args[0] || 'stdio';
     
-    const server = new RemoteMCPServer();
+    const server = new MCPWebAutomationServer();
     
-    logger.info('🚀 启动远程MCP Web Automation服务器');
+    logger.info('🚀 启动MCP Web Automation服务器');
     logger.info(`📡 模式: ${mode}`);
     
     await server.start(mode);
@@ -524,4 +512,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = RemoteMCPServer;
+module.exports = MCPWebAutomationServer;

@@ -1,349 +1,308 @@
+# MCP Web Automation Tool - 项目介绍文档
 
-### 🎯 项目概述
+## 🎯 项目概述
 
-**MCP Web Automation Tool** 是一个基于 Model Context Protocol (MCP) 的强大网页自动化工具，专为 AI 助手提供全面的网页浏览和交互能力。**新版本采用混合部署架构，支持三种访问方式：HTTP API、MCP HTTP 和 MCP stdio，完全移除认证限制，支持无限数量AI客户端并发访问**。
+MCP Web Automation Tool 是一个专为AI助手设计的Web自动化工具，完全符合Model Context Protocol (MCP)规范。该工具为AI客户端提供强大的网页操作能力，包括导航、内容提取、元素交互、截图等功能。
 
-### 🏗️ 混合部署架构设计
+### 核心特性
+- **标准MCP协议**：完全符合MCP规范，确保与所有MCP兼容的AI客户端无缝集成
+- **双重连接模式**：支持stdio（本地）和HTTP/SSE（远程）两种连接方式
+- **智能Web自动化**：提供7个核心MCP工具，覆盖所有常见Web操作需求
+- **高级选择器引擎**：智能降级、编码处理、动态等待机制
+- **数据管理能力**：内置书签和凭据管理系统
 
+## 🏗️ 技术架构
+
+### 架构设计图
 ```
-┌─────────────────┐    HTTP API     ┌──────────────────┐    Puppeteer    ┌─────────────────┐
-│   远程AI客户端   │ ──────────────→ │  HTTP API 服务   │ ──────────────→ │   Chrome 浏览器  │
-│ (编程语言集成)   │    端口29527     │  (无需认证)       │                 │   (Headless)    │
-└─────────────────┘                 └──────────────────┘                 └─────────────────┘
-
-┌─────────────────┐    MCP HTTP     ┌──────────────────┐                          ▲
-│   远程AI客户端   │ ──────────────→ │  MCP HTTP 服务   │                          │
-│ (支持HTTP MCP)   │  端口29528/mcp  │  (SSE连接)       │ ─────────────────────────┤
-└─────────────────┘                 └──────────────────┘                          │
-                                                                                   │
-┌─────────────────┐    MCP stdio    ┌──────────────────┐                          │
-│   本地AI客户端   │ ──────────────→ │  MCP stdio服务   │                          │
-│ (Claude Desktop) │     直接连接     │  (标准输入输出)   │ ─────────────────────────┤
-└─────────────────┘                 └──────────────────┘                          │
-                                                                                   ▼
-                                             ┌──────────────────┐         ┌──────────────────┐
-                                             │   数据存储       │         │   日志系统       │
-                                             │ (JSON文件)       │         │ (分离式日志)      │
-                                             └──────────────────┘         └──────────────────┘
-```
-
-### 🔧 技术栈升级
-
-- **后端框架**: Node.js + Express (HTTP API) + MCP SDK (MCP服务)
-- **MCP协议**: @modelcontextprotocol/sdk + zod (输入验证)
-- **浏览器引擎**: Puppeteer + Chrome Headless
-- **容器化**: Docker + Docker Compose (支持双端口)
-- **数据存储**: JSON 文件 (便于备份和迁移)
-- **认证机制**: ❌ **已移除** (支持无认证访问)
-- **通信协议**: HTTP REST API + MCP stdio + MCP HTTP/SSE
-
-### 🌟 核心功能模块
-
-#### 1. 🌐 网页导航模块
-**HTTP API**: `POST /api/navigate` | **MCP工具**: `web_navigate`
-- URL 跳转和页面加载
-- 支持等待页面完全加载
-- 返回页面标题、URL 和加载状态
-- 智能超时处理
-
-#### 2. 📄 内容提取模块
-**HTTP API**: `GET /api/content` | **MCP工具**: `web_extract_content`
-- HTML 内容提取
-- 文本内容获取
-- 元素属性读取
-- 支持 CSS 选择器定位
-- 多种输出格式 (text/html)
-
-#### 3. 🖱️ 页面交互模块
-**HTTP API**: `POST /api/click`, `POST /api/input` | **MCP工具**: `web_click_element`, `web_input_text`
-- **点击操作**: 元素点击、链接跳转
-- **文本输入**: 表单填写、搜索框输入
-- 支持等待导航完成
-- 智能元素定位
-
-#### 4. 📸 截图功能
-**HTTP API**: `GET /api/screenshot` | **MCP工具**: `web_screenshot`
-- 全页面截图
-- 指定元素截图
-- 多格式支持 (PNG/JPEG)
-- 可配置质量参数
-- Base64编码传输 (MCP模式)
-
-#### 5. 🔖 收藏夹管理
-**HTTP API**: `/api/bookmarks` | **MCP工具**: `web_manage_bookmarks`
-- 分层收藏系统 (网站 → 网页)
-- CRUD 操作 (增删改查)
-- 搜索和统计功能
-- 访问记录跟踪
-- 无数量限制
-
-#### 6. 🔐 密码管理
-**HTTP API**: `/api/credentials` | **MCP工具**: `web_manage_credentials`
-- 网站登录凭证存储
-- 用户名密码管理
-- 自动登录支持
-- 安全存储机制
-
-### 📊 系统特性升级
-
-#### 🎯 性能优化
-- **轻量级设计**: 总内存占用约 200MB (优化后)
-- **资源扩展**: Docker 内存限制 1GB，CPU 限制 2 核 (混合部署)
-- **浏览器优化**: 多进程管理，资源复用
-- **并发控制**: ✅ **无限制** (已移除2客户端限制)
-
-#### 🔒 安全特性升级
-- ❌ **API 密钥认证**: 已移除，支持开放访问
-- ❌ **频率限制保护**: 已移除，支持高频调用
-- ✅ **容器隔离运行**: 保持安全隔离
-- ✅ **进程管理**: 安全的多服务架构
-
-#### 🔄 高可用性增强
-- **多服务架构**: HTTP API + MCP HTTP + MCP stdio
-- **健康检查机制**: 独立的健康检查端点
-- **自动重启策略**: 进程级重启和服务恢复
-- **优雅关闭处理**: 智能资源清理
-- **错误恢复机制**: 分离式错误处理
-
-#### 🚀 新增特性
-- **三种访问协议**: 适配不同AI客户端需求
-- **无认证访问**: 降低集成复杂度
-- **无并发限制**: 支持大规模AI客户端部署
-- **混合部署脚本**: 一键启动和管理
-- **分离式日志**: 独立的服务日志管理
-
-### 📂 项目结构详解 (混合部署版)
-
-```
-mcp-web-automation/
-├── src/                              # 源代码目录
-│   ├── index.js                     # HTTP API入口 - 应用启动和环境检查
-│   ├── server.js                    # HTTP服务器 - Express路由和中间件 (已移除认证)
-│   ├── mcp-server.js                # MCP stdio服务器 - 标准MCP协议实现
-│   ├── mcp-remote-server.js         # MCP HTTP服务器 - 远程MCP协议实现
-│   ├── browser/
-│   │   └── manager.js               # 浏览器管理器 - Puppeteer封装 (已移除并发限制)
-│   ├── data/
-│   │   ├── bookmarks.js             # 收藏夹管理器 - JSON文件操作
-│   │   └── credentials.js           # 密码管理器 - 凭证存储
-│   └── utils/
-│       ├── auth.js                  # 认证工具 - 已禁用API密钥验证
-│       └── logger.js                # 日志工具 - 格式化日志输出
-├── config/
-│   ├── config.json                  # HTTP API配置 (已移除认证配置)
-│   └── config.example.json          # 配置模板
-├── mcp-config.json                  # MCP服务器配置 (新增)
-├── data/
-│   └── user-data.json               # 用户数据存储
-├── logs/                            # 日志目录 (增强)
-│   ├── http-api.log                 # HTTP API日志
-│   ├── mcp-http.log                 # MCP HTTP日志
-│   ├── http-api.pid                 # HTTP API进程ID
-│   └── mcp-http.pid                 # MCP HTTP进程ID
-├── docs/                            # 文档目录 (已更新)
-│   ├── CONFIGURATION.md             # 配置指南 - 混合部署版
-│   ├── COMMANDS-指令速查.md          # 指令速查表 - 混合部署版
-│   ├── TROUBLESHOOTING.md           # 故障排查 - 混合部署版
-│   └── 意义不明的部署教程.md         # 部署教程 - 混合部署版
-├── scripts/                         # 脚本目录
-│   ├── install.sh                   # 传统安装脚本
-│   └── start.sh                     # 传统启动脚本
-├── start-hybrid.sh                  # 混合部署启动脚本 (新增)
-├── AI客户端配置指南.md               # AI客户端配置指南 (新增)
-├── 混合部署完成报告.md               # 技术实现报告 (新增)
-├── Dockerfile                       # Docker构建文件 (已更新)
-├── docker-compose.yml               # Docker Compose配置 (支持双端口)
-└── package.json                     # 项目依赖 (新增MCP SDK)
+┌─────────────────────────────────────────────────────────────┐
+│                    AI客户端生态系统                          │
+├─────────────────┬───────────────────────┬───────────────────┤
+│  Claude Desktop │     远程AI服务         │   Cursor IDE      │
+│  (本地stdio)    │   (HTTP/SSE连接)      │  (本地stdio)      │
+└─────────────────┴───────────────────────┴───────────────────┘
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+┌─────────────────────────────┼─────────────────────────────┐
+│             MCP Web Automation Tool                      │
+├─────────────────────────────┼─────────────────────────────┤
+│  ┌─────────────────┐       │       ┌─────────────────┐   │
+│  │  MCP Stdio      │       │       │  MCP HTTP       │   │
+│  │  服务器         │       │       │  服务器         │   │
+│  │  (本地连接)     │       │       │  (远程连接)     │   │
+│  └─────────────────┘       │       └─────────────────┘   │
+│            │                │                │           │
+│            └────────────────┼────────────────┘           │
+│                             │                            │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │              MCP工具管理器                         │ │
+│  │  ┌─────────────────┬─────────────────┬─────────────┐ │ │
+│  │  │  web_navigate   │ web_extract_    │ web_click_  │ │ │
+│  │  │                 │ content         │ element     │ │ │
+│  │  ├─────────────────┼─────────────────┼─────────────┤ │ │
+│  │  │ web_input_text  │ web_screenshot  │ web_manage_ │ │ │
+│  │  │                 │                 │ bookmarks   │ │ │
+│  │  ├─────────────────┴─────────────────┼─────────────┤ │ │
+│  │  │           web_manage_credentials   │             │ │ │
+│  │  └─────────────────────────────────────────────────┘ │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                             │                            │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │              核心服务管理器                         │ │
+│  │  ┌─────────────────┬─────────────────┬─────────────┐ │ │
+│  │  │  浏览器管理器   │   书签管理器    │ 凭据管理器  │ │ │
+│  │  │  - Chrome控制   │   - 分类存储    │ - 加密存储  │ │ │
+│  │  │  - 会话管理     │   - 增删改查    │ - 自动检索  │ │ │
+│  │  │  - 资源优化     │   - 统计分析    │ - 安全管理  │ │ │
+│  │  └─────────────────┴─────────────────┴─────────────┘ │ │
+│  └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼─────────────────────────────┐
+│                     目标网站生态                         │
+├─────────────────────────────┼─────────────────────────────┤
+│  Google │ Bilibili │ GitHub │ Stack Overflow │ 任意网站  │
+└─────────────────────────────┼─────────────────────────────┘
 ```
 
-### 🔌 API接口规范
+### 技术栈
 
-#### HTTP REST API 接口 (端口 29527)
-| 端点 | 方法 | 功能 | 认证 |
-|------|------|------|------|
-| `/health` | GET | 健康检查 | ❌ 无需认证 |
-| `/api/navigate` | POST | 页面导航 | ❌ 无需认证 |
-| `/api/content` | GET | 内容提取 | ❌ 无需认证 |
-| `/api/click` | POST | 元素点击 | ❌ 无需认证 |
-| `/api/input` | POST | 文本输入 | ❌ 无需认证 |
-| `/api/screenshot` | GET | 页面截图 | ❌ 无需认证 |
-| `/api/bookmarks` | ALL | 收藏夹管理 | ❌ 无需认证 |
-| `/api/credentials` | ALL | 密码管理 | ❌ 无需认证 |
+#### 后端技术
+- **Node.js 18+**：现代JavaScript运行环境
+- **@modelcontextprotocol/sdk**：官方MCP SDK
+- **Express.js**：HTTP服务器框架（用于MCP HTTP传输）
+- **Puppeteer**：Chrome自动化引擎
+- **Zod**：TypeScript优先的模式验证库
 
-#### MCP工具接口 (stdio / HTTP端口29528)
-| 工具名称 | 分类 | 功能 | 输入验证 |
-|---------|------|------|---------|
-| `web_navigate` | navigation | 页面导航 | ✅ zod验证 |
-| `web_extract_content` | extraction | 内容提取 | ✅ zod验证 |
-| `web_click_element` | interaction | 元素点击 | ✅ zod验证 |
-| `web_input_text` | interaction | 文本输入 | ✅ zod验证 |
-| `web_screenshot` | capture | 页面截图 | ✅ zod验证 |
-| `web_manage_bookmarks` | data | 收藏夹管理 | ✅ zod验证 |
-| `web_manage_credentials` | data | 密码管理 | ✅ zod验证 |
+#### 协议和传输
+- **MCP (Model Context Protocol)**：AI助手工具集成标准
+- **stdio Transport**：本地进程间通信
+- **HTTP/SSE Transport**：远程网络通信
+- **JSON-RPC 2.0**：MCP底层通信协议
 
-### 🎛️ 使用场景
+#### 数据存储
+- **JSON文件存储**：轻量级数据持久化
+- **内存缓存**：会话状态管理
+- **加密存储**：敏感凭据保护
 
-#### 🌐 场景1: 远程HTTP API集成
-**适用于**: 编程语言集成、不支持MCP的AI工具
-```python
-import requests
-response = requests.post("http://server:29527/api/navigate", 
-                        json={"url": "https://example.com", "client_id": "python_client"})
-```
+## 🛠️ 核心功能模块
 
-#### 🔗 场景2: 远程MCP HTTP访问
-**适用于**: 支持HTTP/SSE的MCP客户端、云端AI服务
-```json
-{
-  "mcpServers": {
-    "web-automation": {
-      "url": "http://server:29528/mcp",
-      "type": "sse"
-    }
-  }
+### 1. MCP服务器引擎
+- **双模式支持**：stdio和HTTP/SSE传输
+- **工具注册系统**：动态MCP工具管理
+- **模式验证**：基于Zod的输入验证
+- **错误处理**：统一异常处理机制
+
+### 2. Web自动化引擎
+- **浏览器生命周期管理**：Chrome实例创建、复用、清理
+- **多会话支持**：并发客户端的独立会话管理
+- **智能选择器系统**：编码处理、降级策略、动态等待
+- **高级内容提取**：文本、HTML、属性、计算样式
+
+### 3. 数据管理系统
+- **书签管理**：分层存储（网站→页面），支持完整CRUD操作
+- **凭据管理**：加密存储，自动检索，安全管理
+- **会话状态**：浏览器实例、页面状态、用户上下文
+
+### 4. 增强功能特性
+- **动态内容等待**：检测加载指示器，等待异步内容
+- **多格式截图**：PNG/JPEG格式，全页面/视窗截图
+- **错误恢复**：自动重试、降级处理、详细诊断
+- **性能优化**：资源复用、智能缓存、并发控制
+
+## 🎭 MCP工具详解
+
+### 1. web_navigate - 网页导航
+```typescript
+interface NavigateInput {
+  url: string;                    // 目标URL
+  client_id?: string;             // 会话标识符
+  wait_for_load?: boolean;        // 是否等待页面加载完成
 }
 ```
 
-#### 💻 场景3: 本地MCP stdio访问
-**适用于**: Claude Desktop、Cursor IDE等本地AI工具
-```json
-{
-  "mcpServers": {
-    "web-automation": {
-      "command": "node",
-      "args": ["src/mcp-server.js"]
-    }
-  }
+**功能特性**：
+- 支持任意HTTP/HTTPS网站
+- 智能加载检测
+- 错误状态处理
+- 会话隔离
+
+### 2. web_extract_content - 内容提取
+```typescript
+interface ExtractInput {
+  client_id?: string;             // 会话标识符
+  selector?: string;              // CSS选择器
+  type?: 'text' | 'html' | 'attribute' | 'computed';
+  timeout?: number;               // 超时时间
+  waitForContent?: boolean;       // 等待动态内容
+  retryAttempts?: number;         // 重试次数
+  minLength?: number;             // 最小内容长度
+  fallbackSelectors?: string[];   // 备选选择器
 }
 ```
 
-### 🚀 部署方式
+**增强特性**：
+- 智能选择器降级
+- URL编码自动处理
+- 动态内容等待
+- 多重备选策略
 
-#### 🎯 混合部署 (推荐)
-```bash
-# 克隆项目并切换到混合部署分支
-git clone https://github.com/hahaha8459812/mcp-web-automation.git
-cd mcp-web-automation
-git checkout feature/mcp-server-implementation
-
-# 一键启动混合服务
-chmod +x start-hybrid.sh
-./start-hybrid.sh start
+### 3. web_click_element - 元素点击
+```typescript
+interface ClickInput {
+  client_id?: string;             // 会话标识符
+  selector: string;               // 目标元素选择器
+  wait_for_navigation?: boolean;  // 等待页面导航
+}
 ```
 
-#### 🐳 Docker容器部署
-```yaml
-services:
-  mcp-web-automation:
-    ports:
-      - "29527:29527"  # HTTP API
-      - "29528:29528"  # MCP HTTP
-    volumes:
-      - ./config:/app/config:ro
-      - ./mcp-config.json:/app/mcp-config.json:ro
-      - ./data:/app/data
-      - ./logs:/app/logs
+### 4. web_input_text - 文本输入
+```typescript
+interface InputInput {
+  client_id?: string;             // 会话标识符
+  selector: string;               // 输入字段选择器
+  text: string;                   // 输入文本
+  clear?: boolean;                // 清空字段
+}
 ```
 
-#### 🏭 生产环境部署
-```bash
-# 在/opt目录进行生产部署
-cd /opt
-git clone https://github.com/hahaha8459812/mcp-web-automation.git
-cd mcp-web-automation
-git checkout feature/mcp-server-implementation
-./start-hybrid.sh start
-
-# 配置系统服务
-sudo systemctl enable mcp-http-api
-sudo systemctl enable mcp-http-server
+### 5. web_screenshot - 截图
+```typescript
+interface ScreenshotInput {
+  client_id?: string;             // 会话标识符
+  fullPage?: boolean;             // 全页面截图
+  format?: 'png' | 'jpeg';        // 图片格式
+}
 ```
 
-### 📊 性能指标
-
-#### 💾 资源使用 (混合部署)
-- **内存占用**: 约 200MB (运行时)，提升33%效率
-- **启动时间**: 10-15 秒 (三个服务)
-- **并发支持**: ✅ **无限制** (重大升级)
-- **响应时间**: < 100ms (API调用)
-- **截图生成**: 2-3 秒 (1920x1080)
-
-#### 🔄 并发能力
-- **HTTP API**: 无限制并发请求
-- **MCP HTTP**: 无限制SSE连接
-- **MCP stdio**: 独立进程，无干扰
-- **浏览器会话**: 智能复用，独立隔离
-
-### 🔍 开发与维护
-
-#### 🛠️ 开发模式
-```bash
-# 启动HTTP API开发服务器
-NODE_ENV=development node src/index.js
-
-# 启动MCP stdio调试
-DEBUG=* node src/mcp-server.js
-
-# 启动MCP HTTP调试
-LOG_LEVEL=debug node src/mcp-remote-server.js http
+### 6. web_manage_bookmarks - 书签管理
+```typescript
+interface BookmarkInput {
+  action: 'add' | 'list' | 'delete' | 'update';
+  website?: string;               // 网站域名
+  url?: string;                   // 书签URL
+  title?: string;                 // 书签标题
+  bookmark_id?: string;           // 书签ID
+}
 ```
 
-#### 📊 监控和日志
-```bash
-# 查看混合服务状态
-./start-hybrid.sh status
-
-# 查看分离式日志
-./start-hybrid.sh logs
-
-# 健康检查所有服务
-./start-hybrid.sh test
+### 7. web_manage_credentials - 凭据管理
+```typescript
+interface CredentialInput {
+  action: 'save' | 'get' | 'list' | 'delete';
+  website?: string;               // 网站域名
+  username?: string;              // 用户名
+  password?: string;              // 密码
+}
 ```
 
-#### 🔄 更新和备份
-```bash
-# 创建备份
-./backup.sh
+## 📊 系统特性
 
-# 更新到最新版本
-./update.sh
+### 性能特性
+- **低内存占用**：运行时约200MB，空闲时76MB
+- **快速响应**：毫秒级MCP工具响应
+- **高并发**：支持无限制并发客户端
+- **资源优化**：智能浏览器实例复用
 
-# 重启所有服务
-./start-hybrid.sh restart
+### 安全特性
+- **会话隔离**：每个client_id独立的浏览器上下文
+- **数据加密**：敏感凭据AES加密存储
+- **无状态设计**：MCP工具间无依赖关系
+- **错误边界**：完善的异常处理和恢复机制
+
+### 可扩展性
+- **模块化设计**：清晰的功能边界和接口定义
+- **插件架构**：支持自定义MCP工具扩展
+- **配置驱动**：丰富的配置选项和运行时调整
+- **标准协议**：基于MCP标准，确保兼容性
+
+## 🗂️ 项目结构详解
+
+```
+mcp-web-automation-tool/
+├── src/                          # 源代码目录
+│   ├── mcp-server.js            # MCP stdio服务器入口
+│   ├── mcp-remote-server.js     # MCP HTTP服务器入口
+│   ├── browser/                 # 浏览器管理模块
+│   │   └── manager.js           # 浏览器生命周期和会话管理
+│   ├── data/                    # 数据管理模块
+│   │   ├── bookmarks.js         # 书签管理系统
+│   │   └── credentials.js       # 凭据管理系统
+│   └── utils/                   # 工具模块
+│       └── logger.js            # 日志记录工具
+├── docs/                        # 文档目录
+│   ├── COMMANDS-指令速查.md      # 命令速查表
+│   ├── CONFIGURATION.md         # 配置指南
+│   ├── TROUBLESHOOTING.md       # 故障排除
+│   └── 意义不明的部署教程.md     # 部署教程
+├── data/                        # 数据存储目录
+│   ├── user-data.json           # 用户数据文件
+│   └── .gitkeep                 # 目录占位文件
+├── logs/                        # 日志存储目录
+├── mcp-config.json              # MCP服务器配置
+├── start-mcp.sh                 # 服务启动脚本
+├── package.json                 # Node.js项目配置
+└── README.md                    # 项目说明文档
 ```
 
-### 🎉 版本特性对比
+### 关键文件说明
 
-| 特性 | 传统版本 | 混合部署版 | 升级优势 |
-|------|---------|-----------|---------|
-| **访问协议** | 仅HTTP API | HTTP + MCP HTTP + MCP stdio | 3倍协议支持 |
-| **认证要求** | 必需API密钥 | ❌ 完全移除 | 零配置接入 |
-| **并发限制** | 最多2客户端 | ✅ 无限制 | 无限扩展 |
-| **AI客户端支持** | 有限 | 全覆盖 | 100%兼容性 |
-| **部署复杂度** | 中等 | 一键部署 | 5倍简化 |
-| **监控能力** | 基础 | 完整监控 | 企业级运维 |
-| **文档完整度** | 基础 | 详尽指南 | 10倍提升 |
+#### 服务器文件
+- **`src/mcp-server.js`**：stdio传输的MCP服务器，适用于本地AI客户端
+- **`src/mcp-remote-server.js`**：HTTP/SSE传输的MCP服务器，支持远程访问
 
-### 🏆 项目优势
+#### 核心模块
+- **`src/browser/manager.js`**：浏览器实例管理、会话控制、页面操作
+- **`src/data/bookmarks.js`**：书签的CRUD操作、分类管理、数据持久化
+- **`src/data/credentials.js`**：凭据的加密存储、检索、管理
 
-#### 🚀 **技术优势**
-- **多协议支持**: 同时支持HTTP REST、MCP stdio、MCP HTTP三种协议
-- **零配置接入**: 移除所有认证和限制，开箱即用
-- **无限扩展**: 支持无限数量AI客户端并发访问
-- **智能容错**: 分离式架构，单点故障不影响其他服务
+#### 配置和脚本
+- **`mcp-config.json`**：MCP服务器运行配置
+- **`start-mcp.sh`**：统一的服务管理脚本
 
-#### 🎯 **使用优势**
-- **广泛兼容**: 适配市面上所有主流AI客户端
-- **简单集成**: 无需复杂配置，直接API调用
-- **高性能**: 优化的浏览器管理和资源复用
-- **可靠性**: 企业级监控和自动恢复机制
+## 🔄 工作流程
 
-#### 🔧 **运维优势**
-- **一键管理**: 统一的启动、停止、监控脚本
-- **详尽日志**: 分离式日志，快速定位问题
-- **自动化**: 健康检查、自动重启、日志轮转
-- **文档完整**: 详细的配置、部署、故障排查指南
+### MCP工具调用流程
+```
+1. AI客户端 → MCP协议请求
+2. MCP服务器 → 工具路由和验证
+3. 工具管理器 → 参数解析和处理
+4. 核心服务 → 实际Web操作
+5. 结果处理 → 格式化和返回
+6. MCP服务器 → 标准MCP响应
+7. AI客户端 → 接收处理结果
+```
 
-**MCP Web Automation Tool - 混合部署版 是当前最强大、最易用的AI网页自动化解决方案！** 🎊
+### 浏览器会话管理
+```
+1. 客户端请求 → 会话检查
+2. 会话管理器 → 实例创建/复用
+3. 页面操作 → 目标网站交互
+4. 状态维护 → 会话数据更新
+5. 资源清理 → 超时和无效会话清理
+```
 
-*项目介绍文档最后更新: 2025-08-12 | 混合部署版 Hybrid Deployment Version*
+## 🎯 使用场景
+
+### AI助手增强
+- **信息收集**：从网站提取最新信息
+- **自动化任务**：执行重复性Web操作
+- **内容整理**：批量收集和整理网页内容
+- **截图记录**：记录网页状态和变化
+
+### 开发和测试
+- **Web自动化测试**：作为测试工具的后端引擎
+- **内容监控**：定期检查网站内容变化
+- **数据爬取**：结构化数据提取和处理
+- **UI测试**：用户界面自动化测试
+
+### 个人助理功能
+- **书签管理**：智能网站收藏和分类
+- **密码管理**：安全的登录凭据存储
+- **信息提取**：从复杂页面提取关键信息
+- **多账号管理**：不同网站的会话隔离
+
+---
+
+**MCP Web Automation Tool** 为AI助手提供了一个强大、灵活、标准化的Web操作能力，通过符合MCP规范的设计确保了与各种AI客户端的无缝集成。
