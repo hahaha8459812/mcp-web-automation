@@ -77,30 +77,92 @@ class RemoteMCPServer {
 
         // 注册内容提取工具
         this.mcpServer.registerTool("web_extract_content", {
-            description: "Extract content from the current page using CSS selectors",
+            description: "Extract content from the current page using CSS selectors with advanced options",
             inputSchema: {
                 client_id: z.string().optional().describe("Client identifier").default("default"),
                 selector: z.string().optional().describe("CSS selector to target specific elements").default("body"),
-                type: z.enum(["text", "html"]).optional().describe("Type of content to extract").default("text")
+                type: z.enum(["text", "html", "attribute", "computed"]).optional().describe("Type of content to extract").default("text"),
+                timeout: z.number().optional().describe("Timeout in milliseconds (max 60000)"),
+                waitForContent: z.boolean().optional().describe("Wait for content to load dynamically").default(true),
+                retryAttempts: z.number().optional().describe("Number of retry attempts (max 10)").default(3),
+                minLength: z.number().optional().describe("Minimum content length to consider valid"),
+                fallbackSelectors: z.array(z.string()).optional().describe("Array of fallback selectors to try")
             },
-        }, async ({ client_id, selector, type }) => {
+        }, async ({ client_id, selector, type, timeout, waitForContent, retryAttempts, minLength, fallbackSelectors }) => {
             try {
-                const result = await this.browserManager.extractContent(client_id, selector, type);
+                // 构建选项对象
+                const options = {};
+                
+                if (timeout !== undefined) {
+                    options.timeout = Math.min(timeout, 60000);
+                }
+                
+                if (waitForContent !== undefined) {
+                    options.waitForContent = waitForContent;
+                }
+                
+                if (retryAttempts !== undefined) {
+                    options.retryAttempts = Math.min(retryAttempts, 10);
+                }
+                
+                if (minLength !== undefined) {
+                    options.minLength = minLength;
+                }
+                
+                if (fallbackSelectors !== undefined) {
+                    options.fallbackSelectors = fallbackSelectors;
+                }
+                
+                const result = await this.browserManager.extractContent(client_id, selector, type, options);
+                
+                // 构建响应内容
+                let responseText = `📄 Content extracted from selector "${result.selector}"\n`;
+                responseText += `🔍 Extraction method: ${result.metadata?.extractionMethod || 'direct'}\n`;
+                responseText += `📏 Content length: ${result.metadata?.length || 0} characters\n`;
+                
+                if (result.metadata?.retryCount > 0) {
+                    responseText += `🔄 Retry attempts: ${result.metadata.retryCount}\n`;
+                }
+                
+                responseText += `⏰ Timestamp: ${result.timestamp}\n\n`;
+                
+                // 限制显示的内容长度
+                const maxDisplayLength = 2000;
+                if (result.content.length > maxDisplayLength) {
+                    responseText += `${result.content.substring(0, maxDisplayLength)}\n\n... (truncated, total length: ${result.content.length} characters)`;
+                } else {
+                    responseText += result.content;
+                }
                 
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `📄 Content extracted from selector "${selector}":\n\n${result.content.substring(0, 2000)}${result.content.length > 2000 ? '\n\n... (truncated, total length: ' + result.content.length + ' characters)' : ''}`
+                            text: responseText
                         }
                     ]
                 };
             } catch (error) {
+                let errorText = `❌ Content extraction failed: ${error.message}`;
+                
+                // 如果是增强错误，显示详细信息
+                if (error.errorInfo) {
+                    errorText = `❌ Enhanced Content Extraction Error:\n\n`;
+                    errorText += `🎯 Selector: ${error.errorInfo.selector}\n`;
+                    errorText += `📄 Type: ${error.errorInfo.type}\n`;
+                    errorText += `⏰ Timestamp: ${error.errorInfo.timestamp}\n`;
+                    errorText += `💡 Suggestions:\n`;
+                    error.errorInfo.suggestions.forEach((suggestion, index) => {
+                        errorText += `   ${index + 1}. ${suggestion}\n`;
+                    });
+                    errorText += `\n🔍 Original Error: ${error.errorInfo.message}`;
+                }
+                
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `❌ Content extraction failed: ${error.message}`
+                            text: errorText
                         }
                     ],
                     isError: true

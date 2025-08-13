@@ -146,38 +146,400 @@ class BrowserManager {
         }
     }
     
-    async extractContent(clientId, selector = 'body', type = 'text') {
+    async extractContent(clientId, selector = 'body', type = 'text', options = {}) {
         const session = await this.getClientSession(clientId);
         
         try {
-            logger.debug(`📄 提取内容: ${selector} (类型: ${type})`);
+            // 规范化和验证选择器
+            const normalizedSelector = this.normalizeSelector(selector);
+            const validatedSelector = this.validateSelector(normalizedSelector);
+            
+            logger.debug(`📄 提取内容: ${validatedSelector} (类型: ${type})`);
             
             session.lastActivity = new Date();
             
-            let content;
+            // 配置选项
+            const config = {
+                timeout: options.timeout || this.config.timeout,
+                waitForContent: options.waitForContent !== false,
+                retryAttempts: options.retryAttempts || 3,
+                fallbackSelectors: options.fallbackSelectors || this.generateFallbackSelectors(validatedSelector),
+                ...options
+            };
             
-            switch (type.toLowerCase()) {
-                case 'text':
-                    content = await session.page.$eval(selector, el => el.textContent || '');
-                    break;
-                case 'html':
-                    content = await session.page.$eval(selector, el => el.innerHTML || '');
-                    break;
-                default:
-                    content = await session.page.$eval(selector, el => el.textContent || '');
-            }
+            // 使用增强的内容提取策略
+            const result = await this.extractContentWithStrategy(session, validatedSelector, type, config);
             
             return {
-                content: content,
-                selector: selector,
+                content: result.content,
+                selector: result.actualSelector,
                 type: type,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                metadata: {
+                    length: result.content?.length || 0,
+                    isEmpty: !result.content || result.content.trim().length === 0,
+                    extractionMethod: result.method,
+                    retryCount: result.retryCount || 0
+                }
             };
             
         } catch (error) {
             logger.error(`❌ 内容提取失败 (${clientId}):`, error);
-            throw new Error(`Content extraction failed: ${error.message}`);
+            
+            // 提供详细的错误信息
+            const enhancedError = this.enhanceError(error, selector, type);
+            throw enhancedError;
         }
+    }
+
+    /**
+     * 规范化选择器，处理编码和格式问题
+     */
+    normalizeSelector(selector) {
+        if (!selector || typeof selector !== 'string') {
+            return 'body';
+        }
+        
+        // URL解码（如果已编码）
+        let normalized = selector;
+        try {
+            // 检查是否包含URL编码字符
+            if (normalized.includes('%')) {
+                normalized = decodeURIComponent(normalized);
+            }
+        } catch (e) {
+            logger.warn(`⚠️ 选择器解码失败，使用原始值: ${selector}`);
+        }
+        
+        // 移除多余空格并标准化
+        normalized = normalized.trim();
+        
+        // 处理常见的问题字符
+        normalized = normalized
+            .replace(/\s+/g, ' ')  // 多个空格合并为一个
+            .replace(/\s*([>+~])\s*/g, '$1')  // 移除选择器操作符周围的空格
+            .replace(/\s*,\s*/g, ',');  // 标准化逗号分隔的选择器
+            
+        return normalized;
+    }
+
+    /**
+     * 验证选择器的有效性
+     */
+    validateSelector(selector) {
+        // 基本验证
+        if (!selector || selector.length > 1000) {
+            throw new Error('选择器无效或过长');
+        }
+        
+        // 检查危险字符
+        const dangerousPatterns = [
+            /javascript:/i,
+            /<script/i,
+            /on\w+\s*=/i
+        ];
+        
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(selector)) {
+                throw new Error('选择器包含不安全内容');
+            }
+        }
+        
+        // 尝试验证CSS选择器语法
+        try {
+            // 使用document.querySelector验证语法（在浏览器环境中）
+            // 这里我们先返回原值，在实际页面中验证
+            return selector;
+        } catch (e) {
+            logger.warn(`⚠️ 选择器语法可能有问题: ${selector}`);
+            return selector;
+        }
+    }
+
+    /**
+     * 生成备用选择器列表
+     */
+    generateFallbackSelectors(originalSelector) {
+        const fallbacks = [];
+        
+        // 如果原选择器很复杂，提供简化版本
+        if (originalSelector.includes(' ')) {
+            // 提取最后一个元素作为备选
+            const parts = originalSelector.split(/\s+/);
+            fallbacks.push(parts[parts.length - 1]);
+        }
+        
+        // 通用备选方案
+        if (originalSelector.includes('comment')) {
+            fallbacks.push(
+                '*[class*="comment"]',
+                '*[class*="reply"]',
+                '.comment',
+                '.reply',
+                '*[data-v*="comment"]'
+            );
+        }
+        
+        if (originalSelector.includes('video')) {
+            fallbacks.push(
+                '*[class*="video"]',
+                'video',
+                '.video-info',
+                '.video-title'
+            );
+        }
+        
+        // 最终备选
+        fallbacks.push('main', 'article', 'section', 'div', 'body');
+        
+        // 去重并过滤原选择器
+        return [...new Set(fallbacks)].filter(s => s !== originalSelector);
+    }
+
+    /**
+     * 增强的内容提取策略
+     */
+    async extractContentWithStrategy(session, selector, type, config) {
+        const attempts = [];
+        let lastError = null;
+        
+        // 准备选择器列表（原选择器 + 备选）
+        const selectorsToTry = [selector, ...config.fallbackSelectors];
+        
+        for (const currentSelector of selectorsToTry) {
+            for (let attempt = 0; attempt < config.retryAttempts; attempt++) {
+                try {
+                    logger.debug(`🔄 尝试选择器: ${currentSelector} (第${attempt + 1}次)`);
+                    
+                    // 等待内容加载（如果启用）
+                    if (config.waitForContent && attempt === 0) {
+                        await this.waitForContentLoad(session, currentSelector, config.timeout);
+                    }
+                    
+                    // 尝试提取内容
+                    const result = await this.performExtraction(session, currentSelector, type);
+                    
+                    // 验证结果
+                    if (this.isValidContent(result, config)) {
+                        return {
+                            content: result,
+                            actualSelector: currentSelector,
+                            method: 'direct',
+                            retryCount: attempt
+                        };
+                    }
+                    
+                    attempts.push({
+                        selector: currentSelector,
+                        attempt: attempt + 1,
+                        result: result?.substring(0, 100) + '...',
+                        isEmpty: !result || result.trim().length === 0
+                    });
+                    
+                } catch (error) {
+                    lastError = error;
+                    attempts.push({
+                        selector: currentSelector,
+                        attempt: attempt + 1,
+                        error: error.message
+                    });
+                    
+                    // 短暂等待后重试
+                    if (attempt < config.retryAttempts - 1) {
+                        await this.sleep(500 * (attempt + 1));
+                    }
+                }
+            }
+        }
+        
+        // 如果所有尝试都失败，返回页面的基本信息
+        logger.warn(`⚠️ 所有选择器尝试失败，返回页面基本信息`);
+        
+        try {
+            const fallbackContent = await this.getFallbackContent(session, type);
+            return {
+                content: fallbackContent,
+                actualSelector: 'body',
+                method: 'fallback',
+                retryCount: config.retryAttempts,
+                attempts: attempts
+            };
+        } catch (finalError) {
+            throw new Error(`内容提取完全失败: ${lastError?.message || finalError.message}`);
+        }
+    }
+
+    /**
+     * 等待内容动态加载
+     */
+    async waitForContentLoad(session, selector, timeout) {
+        try {
+            // 等待选择器出现
+            await session.page.waitForSelector(selector, { 
+                timeout: Math.min(timeout, 5000),
+                visible: false
+            });
+            
+            // 额外等待内容稳定
+            await this.sleep(1000);
+            
+            // 检查是否有动态加载指示器
+            const loadingIndicators = [
+                '.loading',
+                '.spinner',
+                '*[class*="loading"]',
+                '*[class*="spinner"]'
+            ];
+            
+            for (const indicator of loadingIndicators) {
+                try {
+                    await session.page.waitForSelector(indicator, { 
+                        timeout: 2000,
+                        hidden: true
+                    });
+                } catch (e) {
+                    // 忽略超时，继续检查下一个
+                }
+            }
+            
+        } catch (error) {
+            logger.debug(`⏳ 等待内容加载超时: ${selector}`);
+            // 不抛出错误，继续尝试提取
+        }
+    }
+
+    /**
+     * 执行实际的内容提取
+     */
+    async performExtraction(session, selector, type) {
+        switch (type.toLowerCase()) {
+            case 'text':
+                return await session.page.$eval(selector, el => {
+                    // 更智能的文本提取
+                    if (el.textContent) {
+                        return el.textContent.trim();
+                    }
+                    return el.innerText?.trim() || '';
+                });
+                
+            case 'html':
+                return await session.page.$eval(selector, el => el.innerHTML || '');
+                
+            case 'attribute':
+                // 支持属性提取
+                return await session.page.$eval(selector, el => {
+                    const attrs = {};
+                    for (const attr of el.attributes) {
+                        attrs[attr.name] = attr.value;
+                    }
+                    return JSON.stringify(attrs);
+                });
+                
+            case 'computed':
+                // 支持计算样式提取
+                return await session.page.$eval(selector, el => {
+                    const style = window.getComputedStyle(el);
+                    return JSON.stringify({
+                        display: style.display,
+                        visibility: style.visibility,
+                        opacity: style.opacity
+                    });
+                });
+                
+            default:
+                return await session.page.$eval(selector, el => el.textContent?.trim() || '');
+        }
+    }
+
+    /**
+     * 验证提取的内容是否有效
+     */
+    isValidContent(content, config) {
+        if (!content) return false;
+        
+        const trimmed = content.trim();
+        if (trimmed.length === 0) return false;
+        
+        // 检查最小长度要求
+        if (config.minLength && trimmed.length < config.minLength) {
+            return false;
+        }
+        
+        // 检查是否包含有意义的内容
+        const meaningfulPatterns = [
+            /\w{3,}/,  // 至少包含3个字母的单词
+            /[\u4e00-\u9fff]{2,}/,  // 至少包含2个中文字符
+            /\d+/  // 包含数字
+        ];
+        
+        return meaningfulPatterns.some(pattern => pattern.test(trimmed));
+    }
+
+    /**
+     * 获取备用内容
+     */
+    async getFallbackContent(session, type) {
+        try {
+            // 尝试获取页面标题和URL
+            const title = await session.page.title();
+            const url = session.page.url();
+            
+            // 尝试获取页面的关键信息
+            const pageInfo = await session.page.evaluate(() => {
+                return {
+                    title: document.title,
+                    url: location.href,
+                    textLength: document.body?.textContent?.length || 0,
+                    hasContent: !!document.body?.textContent?.trim()
+                };
+            });
+            
+            if (type === 'html') {
+                return `<html><head><title>${title}</title></head><body><p>内容提取失败，页面信息：${JSON.stringify(pageInfo)}</p></body></html>`;
+            }
+            
+            return `页面标题: ${title}\n页面URL: ${url}\n页面状态: ${pageInfo.hasContent ? '有内容' : '无内容'}\n文本长度: ${pageInfo.textLength}`;
+            
+        } catch (error) {
+            return `内容提取失败: ${error.message}`;
+        }
+    }
+
+    /**
+     * 增强错误信息
+     */
+    enhanceError(originalError, selector, type) {
+        const errorInfo = {
+            message: originalError.message,
+            selector: selector,
+            type: type,
+            timestamp: new Date().toISOString(),
+            suggestions: []
+        };
+        
+        // 根据错误类型提供建议
+        if (originalError.message.includes('failed to find element')) {
+            errorInfo.suggestions.push('选择器可能不存在，尝试使用更通用的选择器');
+            errorInfo.suggestions.push('页面可能还在加载，尝试增加等待时间');
+        }
+        
+        if (originalError.message.includes('timeout')) {
+            errorInfo.suggestions.push('选择器查找超时，尝试简化选择器');
+            errorInfo.suggestions.push('页面加载缓慢，尝试增加超时时间');
+        }
+        
+        const enhancedError = new Error(`内容提取增强错误: ${JSON.stringify(errorInfo, null, 2)}`);
+        enhancedError.originalError = originalError;
+        enhancedError.errorInfo = errorInfo;
+        
+        return enhancedError;
+    }
+
+    /**
+     * 工具方法：睡眠
+     */
+    async sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
     
     async clickElement(clientId, selector, options = {}) {

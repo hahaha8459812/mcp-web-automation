@@ -162,29 +162,97 @@ function setupRoutes(app, config, managers) {
     // ==================== 内容提取 ====================
     app.get('/api/content', async (req, res) => {
         try {
-            const { client_id = 'default', selector = 'body', type = 'text' } = req.query;
+            const { 
+                client_id = 'default', 
+                selector = 'body', 
+                type = 'text',
+                // 新增的高级选项
+                timeout,
+                waitForContent,
+                retryAttempts,
+                minLength,
+                fallbackSelectors
+            } = req.query;
             
             logger.info(`📄 内容提取请求 (客户端: ${client_id})`);
+            logger.debug(`选择器: ${selector}, 类型: ${type}`);
             
-            const result = await browserManager.extractContent(client_id, selector, type);
+            // 构建选项对象
+            const options = {};
+            
+            if (timeout) {
+                const timeoutNum = parseInt(timeout);
+                if (!isNaN(timeoutNum) && timeoutNum > 0) {
+                    options.timeout = Math.min(timeoutNum, 60000); // 最大60秒
+                }
+            }
+            
+            if (waitForContent !== undefined) {
+                options.waitForContent = waitForContent === 'true' || waitForContent === '1';
+            }
+            
+            if (retryAttempts) {
+                const retriesNum = parseInt(retryAttempts);
+                if (!isNaN(retriesNum) && retriesNum > 0) {
+                    options.retryAttempts = Math.min(retriesNum, 10); // 最大10次重试
+                }
+            }
+            
+            if (minLength) {
+                const minLenNum = parseInt(minLength);
+                if (!isNaN(minLenNum) && minLenNum > 0) {
+                    options.minLength = minLenNum;
+                }
+            }
+            
+            if (fallbackSelectors) {
+                try {
+                    // 支持JSON格式的备选选择器列表
+                    options.fallbackSelectors = JSON.parse(fallbackSelectors);
+                } catch (e) {
+                    // 支持逗号分隔的备选选择器
+                    options.fallbackSelectors = fallbackSelectors.split(',').map(s => s.trim());
+                }
+            }
+            
+            const result = await browserManager.extractContent(client_id, selector, type, options);
             
             res.json({
                 success: true,
                 message: 'Content extracted successfully',
                 data: {
                     content: result.content,
-                    selector: selector,
+                    selector: result.selector,
                     type: type,
-                    length: result.content?.length || 0
+                    length: result.content?.length || 0,
+                    metadata: result.metadata || {},
+                    timestamp: result.timestamp
                 }
             });
             
         } catch (error) {
             logger.error('❌ 内容提取失败:', error);
-            res.status(500).json({
+            
+            // 解析增强错误信息
+            let errorResponse = {
                 success: false,
                 error: error.message
-            });
+            };
+            
+            if (error.errorInfo) {
+                errorResponse = {
+                    success: false,
+                    error: error.errorInfo.message,
+                    details: {
+                        selector: error.errorInfo.selector,
+                        type: error.errorInfo.type,
+                        suggestions: error.errorInfo.suggestions,
+                        timestamp: error.errorInfo.timestamp
+                    }
+                };
+            }
+            
+            res.status(500).json(errorResponse);
         }
     });
     
